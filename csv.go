@@ -79,3 +79,22 @@ func ParseFile(filePath string) (*CSVFile, error) {
 
 	return csv, err
 }
+
+func FindTitleIndex(csv CSVFile, title string) int {
+	for i, s := range csv.Titles {
+		if s == title {
+			return i
+		}
+	}
+	return -1
+}
+
+func FindTitleIndexs(csv CSVFile, title string) []int {
+	var result []int
+	for i, s := range csv.Titles {
+		if s == title {
+			result = append(result, i)
+		}
+	}
+	return result
+}
