@@ -1,3 +1,7 @@
+// Package gr_csv provides a simplified API for reading csv files.
+//
+// It offers a higher-level interface for common read operations,
+// such as parsing and finding titles
 package gr_csv
 
 import (
@@ -5,11 +9,13 @@ import (
 	"strings"
 )
 
+// CSVFile represents an in-memory csv file, consisting of the headers and the row data.
 type CSVFile struct {
 	Titles []string
 	Rows   []CSVRow
 }
 
+// CSVRow represents a single row of data in the file.
 type CSVRow struct {
 	Fields []string
 }
@@ -18,6 +24,8 @@ const (
 	bom = "\uFEFF"
 )
 
+// ParseFile, parses a file into a CSVFile type given a filepath.
+// Returns nil and error if the file doesn't exist.
 func ParseFile(filePath string) (*CSVFile, error) {
 	raw, err := os.ReadFile(filePath)
 	if err != nil {
@@ -80,6 +88,8 @@ func ParseFile(filePath string) (*CSVFile, error) {
 	return csv, err
 }
 
+// FindTitleIndex, finds the first index of the given title inside the CSVFile headers.
+// Returns the index or -1 if not found.
 func (csv *CSVFile) FindTitleIndex(title string) int {
 	for i, s := range csv.Titles {
 		if s == title {
@@ -89,6 +99,8 @@ func (csv *CSVFile) FindTitleIndex(title string) int {
 	return -1
 }
 
+// FindTitleIndexs, finds all the indexs of the given title inside the CSVFile headers.
+// Returns a list of indexs or empty list if not found.
 func (csv *CSVFile) FindTitleIndexs(title string) []int {
 	var result []int
 	for i, s := range csv.Titles {
@@ -99,6 +111,7 @@ func (csv *CSVFile) FindTitleIndexs(title string) []int {
 	return result
 }
 
+// RowCount, returns the number of rows in the csv file, excluding the header row.
 func (csv *CSVFile) RowCount() int {
 	return len(csv.Rows)
 }
