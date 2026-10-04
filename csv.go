@@ -5,8 +5,10 @@
 package gr_csv
 
 import (
+	"bufio"
+	"encoding/csv"
+	"io"
 	"os"
-	"strings"
 )
 
 // CSVFile represents an in-memory csv file, consisting of the headers and the row data.
@@ -27,65 +29,42 @@ const (
 // ParseFile, parses a file into a CSVFile type given a filepath.
 // Returns nil and error if the file doesn't exist.
 func ParseFile(filePath string) (*CSVFile, error) {
-	raw, err := os.ReadFile(filePath)
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	return ParseReader(file)
+}
+
+// ParseReader, parses a io.Reader into a CSVFile.
+// Returns nil and error if the file doesn't exist.
+func ParseReader(r io.Reader) (*CSVFile, error) {
+	r = stripBOM(r)
+
+	reader := csv.NewReader(r)
+	reader.FieldsPerRecord = 0
+	reader.TrimLeadingSpace = false
+
+	records, err := reader.ReadAll()
 	if err != nil {
 		return nil, err
 	}
 
-	fileContents := string(raw)
-	fileContents = strings.TrimPrefix(fileContents, bom)
+	csvFile := &CSVFile{}
 
-	csv := &CSVFile{}
-	row := &CSVRow{}
-	var field strings.Builder
-
-	inQuotes := false
-	isFirstRow := true
-
-	i := 0
-	for i < len(fileContents) {
-		c := fileContents[i]
-
-		switch {
-		case c == '"' && !inQuotes:
-			inQuotes = true
-		case c == '"' && inQuotes:
-			if i+1 < len(fileContents) && fileContents[i+1] == '"' {
-				field.WriteByte('"')
-				i++
-			} else {
-				inQuotes = false
-			}
-		case c == ',' && !inQuotes:
-			row.Fields = append(row.Fields, field.String())
-			field.Reset()
-		case c == '\n' && !inQuotes:
-			row.Fields = append(row.Fields, field.String())
-			field.Reset()
-
-			if isFirstRow {
-				csv.Titles = row.Fields
-				isFirstRow = false
-			} else {
-				csv.Rows = append(csv.Rows, *row)
-			}
-			row = &CSVRow{}
-		default:
-			if c != '\r' {
-				field.WriteByte(c)
-			}
-		}
-		i++
+	if len(records) == 0 {
+		return csvFile, nil
 	}
 
-	if field.Len() > 0 || len(row.Fields) > 0 {
-		if field.Len() > 0 {
-			row.Fields = append(row.Fields, field.String())
-		}
-		csv.Rows = append(csv.Rows, *row)
+	csvFile.Titles = records[0]
+	csvFile.Rows = make([]CSVRow, 0, len(records)-1)
+	for _, rec := range records[1:] {
+		csvFile.Rows = append(csvFile.Rows, CSVRow{Fields: rec})
 	}
 
-	return csv, err
+	return csvFile, nil
 }
 
 // FindTitleIndex, finds the first index of the given title inside the CSVFile headers.
@@ -99,9 +78,9 @@ func (csv *CSVFile) FindTitleIndex(title string) int {
 	return -1
 }
 
-// FindTitleIndexs, finds all the indexs of the given title inside the CSVFile headers.
+// FindTitleIndexes, finds all the indexs of the given title inside the CSVFile headers.
 // Returns a list of indexs or empty list if not found.
-func (csv *CSVFile) FindTitleIndexs(title string) []int {
+func (csv *CSVFile) FindTitleIndexes(title string) []int {
 	var result []int
 	for i, s := range csv.Titles {
 		if s == title {
@@ -115,3 +94,16 @@ func (csv *CSVFile) FindTitleIndexs(title string) []int {
 func (csv *CSVFile) RowCount() int {
 	return len(csv.Rows)
 }
+
+// stripBOM returns a reader that skips a leading UTF-8 BOM if one is present.
+// It peeks the first three bytes and only consumes them if they match.
+// non-BOM input is untouched.
+func stripBOM(r io.Reader) io.Reader {
+	br := bufio.NewReader(r)
+	peek, err := br.Peek(3)
+	if err == nil && string(peek) == bom {
+		_, _ = br.Discard(3)
+	}
+	return br
+}
+
